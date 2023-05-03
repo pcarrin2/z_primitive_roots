@@ -7,11 +7,24 @@ use divisors::get_divisors;
 use flume;
 use std::thread;
 
+// This program finds z-primitive roots of primes from a given starting point.
+// z-primitive roots mod p are primitive roots mod p that aren't primitive roots
+// mod p^2. Zhuo Zhang conjectures that the proportion of primes with z-primitive
+// roots goes to Artin's constant as we consider larger primes.
+//
+// USAGE: ./z_primitive_roots START INCREMENT
+//      START: the nth prime to begin at
+//      INCREMENT: how many rows to write per output file (one row per prime)
+// The program writes .tsv output files to its working directory.
+// To kill this program, you have to press Ctrl-C (or equivalent abort on Windows).
+//
+// This program's number of threads is hardcoded for now, search "threads" in all caps
+// to modify that number -- then recompile.
+
 fn find_first_pr(p: u64, divs: &Vec<u64>) -> u64 {
-    // first, take p mod 8 to find the best order in which to check numbers
-    // each of the ranges in the match statement is basically a shuffling of 
-    // integers from 1 to p-1. (or in one case, p-2). don't worry, QRs get
-    // filtered out later.
+    // p is a given prime, divs is a vector of divisors of p-1.
+    // (we could calculate divs here, but we'll need to use it in a different
+    // function, and double-calculating it is horrible for performance.)
     let p_f = p as f64;
     let check_list: Box<dyn Iterator<Item=u64>> = match p % 8 {
         1 => {let p_over_3 = floor(p_f/3.0) as u64; 
@@ -25,16 +38,14 @@ fn find_first_pr(p: u64, divs: &Vec<u64>) -> u64 {
 
 
     for n in check_list {
-        // check for QRs
         if number_theory::NumberTheory::legendre(&n, &p)==1 {
             continue;
         }
 
         // the order of n mod p will divide p-1 (the Carmichael lambda of p)
         let mut is_pr = true;
-        for d in divs { // should export these divisors too tbh
+        for d in divs {
             if number_theory::NumberTheory::exp_residue(&n, d, &p) == 1 {
-                // this n is not a pr mod p
                 is_pr = false;
                 break;
             }
@@ -45,6 +56,7 @@ fn find_first_pr(p: u64, divs: &Vec<u64>) -> u64 {
 }
 
 fn find_all_prs(p: u64, divs: &Vec<u64>) -> Vec<u64> {
+    // p is a given prime, divs is a vector of divisors of p-1.
     let g = find_first_pr(p, divs);
     // raise g to all k where gcd(k, p-1) = 1
     let mut all_prs = vec![];
@@ -59,6 +71,8 @@ fn find_all_prs(p: u64, divs: &Vec<u64>) -> Vec<u64> {
 }
 
 fn check_pr_mod_psquared(p: u64, n:u64, divs: &Vec<u64>) -> bool {
+    // p is a prime, n is a PR mod p, divs are divisors of p(p-1).
+    // returns true if n is a PR mod p^2 and false otherwise.
     for d in divs {
         if number_theory::NumberTheory::exp_residue(&n, d, &(p.pow(2))) == 1 {
             return false;
@@ -73,13 +87,14 @@ fn worker(start: u64, stop: u64) {
     let filename = format!("zprs_{}_{}.tsv", start, stop);
     let mut f = File::create(filename).expect("opening file failed");
     write!(f, "p\tzprs\tn_zprs\n").expect("write error");
+
     for i in start..stop {
         let p = number_theory::NumberTheory::nth_prime(&(i)).unwrap();
-        //calculate divisors of p-1 only once 
+        // calculate divisors of p-1 only once 
         let mut divs = get_divisors(p-1);
         let prs = find_all_prs(p, &divs);
         let mut divs_times_p = divs.clone().into_iter().map(|x| x*p).collect();
-        divs.push(p);
+        divs.push(p); // adding elements to divs so it lists the divisors of p(p-1)
         divs.push(p-1);
         divs.append(&mut divs_times_p);
 
@@ -104,7 +119,7 @@ fn main() {
 
     let (tx, rx) = flume::bounded::<Vec<u64>>(0); // rendezvous channel
 
-    for _ in 0..4 { // worker threads
+    for _ in 0..4 { // 4 is number of THREADS -- replace with something else
        let rx = rx.clone(); 
         thread::spawn(move || {
             for msg in rx.iter() {
@@ -116,7 +131,7 @@ fn main() {
     drop(rx);
     
 
-    loop { // sender threads
+    loop { // sender
         tx.send(interval).expect("error sending to worker thread");
         start += gap;
         stop += gap;
@@ -124,50 +139,3 @@ fn main() {
     }
 }
 
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /*#[test]
-    fn test_check_pr_mod_psquared() {
-        assert_eq!(check_pr_mod_psquared(13, 6), true);
-        assert_eq!(check_pr_mod_psquared(29, 14), false);
-        assert_eq!(check_pr_mod_psquared(7, 3), true);
-        assert_eq!(check_pr_mod_psquared(37, 10), false);
-
-    }
-
-    #[test]
-    fn test_find_all_prs() {
-        let mut prs_5 = find_all_prs(5);
-        prs_5.sort();
-        let mut prs_11 = find_all_prs(11);
-        prs_11.sort();
-        let mut prs_7 = find_all_prs(7);
-        prs_7.sort();
-        let mut prs_13 = find_all_prs(13);
-        prs_13.sort();
-        assert_eq!(prs_5, vec![2 as u64, 3 as u64]);
-        assert_eq!(prs_11, vec![2 as u64, 6 as u64, 7 as u64, 8 as u64]);
-        assert_eq!(prs_7, vec![3 as u64, 5 as u64]);
-        assert_eq!(prs_13, vec![2 as u64, 6 as u64, 7 as u64, 11 as u64]);
-    }*/
-    #[test]
-    fn test_divs_psquared() {
-        let p = 101 as u64;
-        //calculate divisors of p-1 only once 
-        let mut divs = get_divisors(p-1);
-        let prs = find_all_prs(p, &divs);
-        let mut divs_times_p = divs.clone().into_iter().map(|x| x*p).collect();
-        divs.push(p);
-        divs.push(p-1);
-        divs.append(&mut divs_times_p);
-        divs.sort();
-        let mut canonical_divs_psquared = get_divisors(p*(p-1));
-        canonical_divs_psquared.sort();
-        assert_eq!(divs, canonical_divs_psquared);
-    }
-
-}
