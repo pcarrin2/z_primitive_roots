@@ -25,13 +25,18 @@ fn find_first_pr(p: u64, divs: &Vec<u64>) -> u64 {
     // p is a given prime, divs is a vector of divisors of p-1.
     // (we could calculate divs here, but we'll need to use it in a different
     // function, and double-calculating it is horrible for performance.)
-    let p_f = p as f64;
     let check_list: Box<dyn Iterator<Item=u64>> = match p % 8 {
-        1 => {let p_over_3 = floor(p_f/3.0) as u64; 
-            Box::new([2].into_iter().chain(p_over_3..p-1).chain(3..p_over_3))}
+        1 => {
+            let p_f = p as f64;
+            let p_over_3 = floor(p_f/3.0) as u64; 
+            Box::new([2].into_iter().chain(p_over_3..p-1).chain(3..p_over_3))
+        }
         3 => Box::new((2..p-1).rev()),
-        5 => {let p_over_3 = floor(p_f/3.0) as u64; 
-            Box::new((p_over_3..p-1).chain(2..p_over_3))}
+        5 => {
+            let p_f = p as f64;
+            let p_over_3 = floor(p_f/3.0) as u64; 
+            Box::new((p_over_3..p-1).chain(2..p_over_3))
+        }
         7 => Box::new([2].into_iter().chain((3..p-2).rev())),
         _ => {panic!("p is not an odd prime! p mod 8 is even!");}
     };
