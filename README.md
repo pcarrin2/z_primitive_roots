@@ -1,5 +1,5 @@
 # z_primitive_roots
-Find primitive roots mod p that aren't primitive roots mod p^2, in Rust.
+Find primitive roots mod p that aren't primitive roots mod p^2, in Rust. This project was originally written to help a friend with a very specific research question, but I figured the code itself (how I find and check primitive roots) might be useful to others.
 
 ## To run:
 Clone to your machine, compile, and run `./z_primitive_roots [START] [INCREMENT]`, where START is the nth prime to start at, and INCREMENT is the number of primes per file.
